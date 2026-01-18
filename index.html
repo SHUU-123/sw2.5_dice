@@ -11,6 +11,9 @@
             --bg-color: #f4f7f6;
             --btn-color: #3498db;
             --log-bg: #ffffff;
+            /* 追加：判定用カラー */
+            --critical-color: #f1c40f;
+            --fumble-color: #e74c3c;
         }
 
         body {
@@ -58,15 +61,19 @@
             animation: fadeIn 0.3s;
         }
 
-        .consecutive-badge {
-            background: #ffcc00;
-            color: #000;
+        /* バッジスタイル */
+        .badge {
             font-size: 10px;
-            padding: 2px 5px;
+            padding: 2px 6px;
             border-radius: 10px;
             margin-left: 5px;
             font-weight: bold;
+            color: white;
+            display: inline-block;
         }
+        .consecutive-badge { background: #95a5a6; color: #fff; }
+        .critical-badge { background: var(--critical-color); color: #000; }
+        .fumble-badge { background: var(--fumble-color); }
 
         /* ボタンデザイン */
         .btn {
@@ -150,8 +157,7 @@
 
     <div class="input-group">
         <label>1d</label>
-        <select id="dx-select">
-            </select>
+        <select id="dx-select"></select>
         <button class="btn" onclick="rollDx()">ロール</button>
     </div>
 
@@ -166,12 +172,11 @@
 </div>
 
 <script>
-    let currentPage = 0; // 0: 1-20, 1: 21-40...
+    let currentPage = 0;
     const pageSize = 20;
     let lastResult = null;
     let logs = JSON.parse(localStorage.getItem('sw25_logs') || '[]');
 
-    // 初期化
     window.onload = () => {
         renderPlusButtons();
         renderDxOptions();
@@ -179,23 +184,31 @@
         loadCustomDice();
     };
 
-    // 2d6ロール
+    // 2d6ロール（クリティカル・ファンブル判定付き）
     function roll2d6(mod) {
         const d1 = Math.floor(Math.random() * 6) + 1;
         const d2 = Math.floor(Math.random() * 6) + 1;
-        const total = d1 + d2 + mod;
+        const diceSum = d1 + d2;
+        const total = diceSum + mod;
         const formula = `2d6${mod > 0 ? '+' + mod : ''} [${d1},${d2}]`;
-        addLog(formula, total);
+        
+        // 判定ロジック
+        let status = null;
+        if (diceSum === 2) {
+            status = 'fumble';
+        } else if (diceSum === 12) {
+            status = 'critical';
+        }
+
+        addLog(formula, total, status);
     }
 
-    // 1dxロール
     function rollDx() {
         const sides = document.getElementById('dx-select').value;
         const result = Math.floor(Math.random() * sides) + 1;
-        addLog(`1d${sides}`, result);
+        addLog(`1d${sides}`, result, null);
     }
 
-    // カスタムロール
     function rollCustom() {
         const num = parseInt(document.getElementById('custom-num').value) || 1;
         const sides = parseInt(document.getElementById('custom-sides').value) || 6;
@@ -211,19 +224,19 @@
         const total = sum + mod;
         const formula = `${num}d${sides}${mod !== 0 ? (mod > 0 ? '+' + mod : mod) : ''} [${diceResults.join(',')}]`;
         
-        // 保存用
         localStorage.setItem('sw25_custom', JSON.stringify({num, sides, mod}));
-        addLog(formula, total);
+        // カスタムロールではSW2.5特有の自動成功・失敗判定は行わない（指示通り）
+        addLog(formula, total, null);
     }
 
-    // ログ追加
-    function addLog(formula, total) {
+    // ログ追加（status引数を追加）
+    function addLog(formula, total, status) {
         const isConsecutive = (total === lastResult);
         const timestamp = new Date().toLocaleTimeString();
-        const logEntry = { formula, total, timestamp, isConsecutive };
+        const logEntry = { formula, total, timestamp, isConsecutive, status };
         
         logs.unshift(logEntry);
-        if (logs.length > 100) logs.pop(); // 最大100件
+        if (logs.length > 100) logs.pop();
         
         lastResult = total;
         saveAndRenderLogs();
@@ -236,13 +249,19 @@
 
     function renderLogs() {
         const container = document.getElementById('log-container');
-        container.innerHTML = logs.map(l => `
-            <div class="log-item">
-                <small>${l.timestamp}</small><br>
-                <strong>${l.formula} ➔ ${l.total}</strong>
-                ${l.isConsecutive ? '<span class="consecutive-badge">連続!</span>' : ''}
-            </div>
-        `).join('');
+        container.innerHTML = logs.map(l => {
+            let statusBadge = '';
+            if (l.status === 'critical') statusBadge = '<span class="badge critical-badge">自動成功</span>';
+            if (l.status === 'fumble') statusBadge = '<span class="badge fumble-badge">自動失敗</span>';
+            const conBadge = l.isConsecutive ? '<span class="badge consecutive-badge">連続</span>' : '';
+
+            return `
+                <div class="log-item">
+                    <small>${l.timestamp}</small>${statusBadge}${conBadge}<br>
+                    <strong>${l.formula} ➔ ${l.total}</strong>
+                </div>
+            `;
+        }).join('');
     }
 
     function clearLog() {
@@ -253,7 +272,6 @@
         }
     }
 
-    // 2d6+nボタン生成
     function renderPlusButtons() {
         const grid = document.getElementById('plus-buttons-grid');
         grid.innerHTML = '';
@@ -278,7 +296,6 @@
         renderPlusButtons();
     }
 
-    // 1d1-100 プルダウン生成
     function renderDxOptions() {
         const select = document.getElementById('dx-select');
         for (let i = 1; i <= 100; i++) {
