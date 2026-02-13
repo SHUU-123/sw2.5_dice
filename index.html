@@ -1,321 +1,486 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SW2.5 Dice App</title>
-    <style>
-        :root {
-            --primary-color: #2c3e50;
-            --accent-color: #e74c3c;
-            --bg-color: #f4f7f6;
-            --btn-color: #3498db;
-            --log-bg: #ffffff;
-            /* 追加：判定用カラー */
-            --critical-color: #00ff00;
-            --fumble-color: #e74c3c;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SW2.5 Dice Roller</title>
+<style>
+    :root {
+        --primary: #2563eb;
+        --primary-light: #3b82f6;
+        --enemy-color: #ef4444;
+        --bg: #f3f4f6;
+        --surface: #ffffff;
+        --text: #1f2937;
+        --fumble: #ef4444;
+        --crit: #10b981;
+    }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin: 0; padding: 0; background: var(--bg); color: var(--text);
+        display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    }
 
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-color);
-            margin: 0;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
+    /* ヘッダー */
+    header {
+        background: var(--surface); padding: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10;
+        display: flex; justify-content: flex-end;
+    }
+    button.rename-btn { 
+        padding: 6px 12px; background: #f9fafb; border: 1px solid #ccc; 
+        border-radius: 6px; font-size: 12px; color: #555;
+    }
 
-        /* レイアウト */
-        #sidebar {
-            width: 300px;
-            background: var(--log-bg);
-            border-right: 2px solid #ddd;
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
-        }
+    /* メインエリア */
+    main { flex: 1; overflow-y: auto; padding: 10px; }
 
-        #main {
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+    .section {
+        background: var(--surface); padding: 15px; border-radius: 12px;
+        margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    .section-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+    }
+    h3 { margin: 0; font-size: 16px; color: #555; }
 
-        /* ログエリア */
-        #log-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            border: 1px solid #eee;
-            border-radius: 5px;
-            padding: 5px;
-            margin-bottom: 10px;
-        }
+    /* 2d6ボタン */
+    .main-roll-btn {
+        background: var(--primary);
+        color: white; border: none; padding: 15px 40px; border-radius: 40px;
+        font-weight: bold; font-size: 24px; cursor: pointer;
+        box-shadow: 0 4px 10px rgba(37, 99, 235, 0.4);
+        display: flex; flex-direction: column; align-items: center;
+        gap: 2px; transition: transform 0.1s;
+    }
+    .main-roll-btn:active { transform: scale(0.95); background: var(--primary-light); }
+    .main-roll-btn span { font-size: 12px; font-weight: normal; opacity: 0.9; letter-spacing: 1px; }
 
-        .log-item {
-            border-bottom: 1px solid #eee;
-            padding: 8px;
-            font-size: 14px;
-            animation: fadeIn 0.3s;
-        }
+    /* ダメージ計算用スタイル */
+    .dmg-controls {
+        display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+        background: #eff6ff; padding: 10px; border-radius: 8px; margin-bottom: 10px;
+    }
+    .dmg-group { display: flex; flex-direction: column; gap: 2px; }
+    .dmg-group label { font-size: 11px; color: #555; font-weight: bold; }
+    .dmg-input { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: white; width: 60px; text-align: center; }
+    .dmg-btn {
+        background: #ea580c; color: white; border: none; padding: 10px 20px;
+        border-radius: 8px; font-weight: bold; flex-grow: 1; min-width: 80px;
+        box-shadow: 0 2px 5px rgba(234, 88, 12, 0.3);
+    }
+    .dmg-btn:active { transform: scale(0.98); }
 
-        /* バッジスタイル */
-        .badge {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-left: 5px;
-            font-weight: bold;
-            color: white;
-            display: inline-block;
-        }
-        .consecutive-badge { background: #95a5a6; color: #fff; }
-        .critical-badge { background: var(--critical-color); color: #000; }
-        .fumble-badge { background: var(--fumble-color); }
+    /* ページネーション */
+    .pagination { display: flex; overflow-x: auto; gap: 5px; margin-bottom: 10px; padding-bottom: 5px; }
+    .page-btn { padding: 6px 12px; border: 1px solid var(--primary); background: var(--surface); color: var(--primary); border-radius: 20px; white-space: nowrap; font-size: 13px; }
+    .page-btn.active { background: var(--primary); color: white; }
+    
+    .mod-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .mod-btn { background: #e0f2fe; color: #0369a1; border: none; padding: 12px 0; border-radius: 8px; font-weight: bold; font-size: 14px; }
 
-        /* ボタンデザイン */
-        .btn {
-            background: var(--btn-color);
-            color: white;
-            border: none;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 18px;
-            cursor: pointer;
-            touch-action: manipulation;
-            transition: opacity 0.1s;
-        }
+    /* その他ダイス */
+    .custom-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+    select, input[type="number"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: white; }
+    .action-btn { background: var(--text); color: white; border: none; padding: 8px 16px; border-radius: 6px; }
 
-        .btn:active { opacity: 0.7; }
+    /* ログ */
+    .log-entry {
+        border-left: 4px solid #ccc; padding: 8px 12px; background: #f9fafb;
+        margin-bottom: 8px; border-radius: 0 4px 4px 0;
+        display: flex; justify-content: space-between; align-items: center;
+        position: relative;
+    }
+    .log-entry.crit { border-left-color: var(--crit); background: #d1fae5; }
+    .log-entry.fumble { border-left-color: var(--fumble); background: #fee2e2; }
+    
+    .log-content { flex-grow: 1; width: 70%; }
+    .log-header { font-size: 11px; color: #666; margin-bottom: 2px; }
+    .log-detail { font-size: 12px; color: #888; white-space: pre-wrap; word-break: break-all; }
+    
+    .log-right { display: flex; align-items: center; gap: 10px; width: 30%; justify-content: flex-end; }
+    .log-result { font-weight: bold; font-size: 20px; text-align: right; }
+    
+    .del-entry-btn {
+        background: #eee; color: #999; border: none; width: 24px; height: 24px; flex-shrink: 0;
+        border-radius: 50%; font-size: 16px; cursor: pointer; display: flex;
+        align-items: center; justify-content: center; line-height: 1;
+    }
+    .del-entry-btn:hover { background: #ddd; color: #666; }
 
-        .btn-main-2d6 {
-            background: var(--accent-color);
-            font-weight: bold;
-            width: 100%;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
+    .text-btn { background: none; border: none; color: var(--primary); font-size: 14px; text-decoration: underline; margin-left: 10px; cursor: pointer; }
+    .text-btn.danger { color: var(--fumble); }
 
-        /* ページ分けセクション */
-        .pagination-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
+    /* モーダル */
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); z-index: 100;
+        display: none; justify-content: center; align-items: center;
+    }
+    .modal-content {
+        background: white; width: 90%; max-width: 400px;
+        border-radius: 12px; padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        animation: fadeIn 0.2s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    
+    .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center; }
+    .char-select-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    
+    .modal-char-btn {
+        padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;
+        background: white; font-weight: bold; cursor: pointer;
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .modal-char-btn.pc { border-color: var(--primary-light); color: var(--primary); background: #eff6ff; }
+    .modal-char-btn.enemy { border-color: var(--fumble); color: var(--fumble); background: #fef2f2; }
+    .modal-close {
+        width: 100%; padding: 12px; background: #eee; border: none;
+        border-radius: 8px; font-size: 14px; color: #555; cursor: pointer;
+    }
 
-        #plus-buttons-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-        }
-
-        /* カスタム/プルダウン */
-        .input-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        select, input {
-            padding: 10px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    </style>
+</style>
 </head>
 <body>
 
-<div id="sidebar">
-    <h3>ログ</h3>
-    <div id="log-container"></div>
-    <button class="btn" style="background: #95a5a6;" onclick="clearLog()">ログ削除</button>
-</div>
+<header>
+    <button class="rename-btn" onclick="openRenameTool()">キャラクター名編集</button>
+</header>
 
-<div id="main">
-    <button class="btn btn-main-2d6" onclick="roll2d6(0)">2d6</button>
-
-    <hr>
-
-    <div class="pagination-controls">
-        <button class="btn" onclick="changePage(-1)">前へ</button>
-        <span id="page-info">修正値: +1 〜 +20</span>
-        <button class="btn" onclick="changePage(1)">次へ</button>
+<main>
+    <div class="section">
+        <h3>ダメージ計算 (威力表)</h3>
+        <div class="dmg-controls">
+            <div class="dmg-group">
+                <label>威力(k)</label>
+                <input type="number" id="dmgRate" class="dmg-input" value="20" min="0" max="100" step="10">
+            </div>
+            <div class="dmg-group">
+                <label>C値</label>
+                <select id="dmgCrit" class="dmg-input">
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10" selected>10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                    <option value="13">なし</option>
+                </select>
+            </div>
+            <div class="dmg-group">
+                <label>追加D</label>
+                <input type="number" id="dmgMod" class="dmg-input" value="0">
+            </div>
+            <button class="dmg-btn" onclick="startDamageRoll()">算出！</button>
+        </div>
+        <div style="font-size:11px; color:#888;">※C値以上で自動回転します</div>
     </div>
-    <div id="plus-buttons-grid"></div>
 
-    <hr>
-
-    <div class="input-group">
-        <label>1d</label>
-        <select id="dx-select"></select>
-        <button class="btn" onclick="rollDx()">ロール</button>
+    <div class="section">
+        <div class="section-header">
+            <h3>判定 (命中・行使など)</h3>
+            <button class="main-roll-btn" onclick="startRoll('2d6', 0)">
+                2d6
+                <span>(平目)</span>
+            </button>
+        </div>
+        <div class="pagination" id="pagination"></div>
+        <div class="mod-grid" id="modGrid"></div>
     </div>
 
-    <div class="input-group">
-        <input type="number" id="custom-num" placeholder="個数" value="2" style="width: 50px;">
-        <span>d</span>
-        <input type="number" id="custom-sides" placeholder="面" value="6" style="width: 50px;">
-        <span>+</span>
-        <input type="number" id="custom-mod" placeholder="修正" value="0" style="width: 50px;">
-        <button class="btn" onclick="rollCustom()">カスタムロール</button>
+    <div class="section">
+        <h3>その他ダイス</h3>
+        <div class="custom-row">
+            <select id="any-dice-select" style="min-width: 100px;"></select>
+            <button class="action-btn" onclick="startRoll('any')">振る</button>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+        <div class="custom-row">
+            <input type="number" id="customDiceCount" value="1" min="1" style="width: 50px;">
+            <span>d</span>
+            <input type="number" id="customDiceSides" value="6" min="2" style="width: 50px;">
+            <span>+</span>
+            <input type="number" id="customDiceMod" value="0" style="width: 50px;">
+            <button class="action-btn" onclick="startRoll('custom')">振る</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3>履歴</h3>
+            <div>
+                <button class="text-btn" onclick="downloadLog()">保存</button>
+                <button class="text-btn danger" onclick="clearLog()">全削除</button>
+            </div>
+        </div>
+        <div id="log-container"></div>
+    </div>
+</main>
+
+<div id="charModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-title">誰が振りますか？</div>
+        <div id="modalCharList" class="char-select-grid"></div>
+        <button class="modal-close" onclick="closeModal()">キャンセル</button>
     </div>
 </div>
 
 <script>
+    const TOTAL_MODS = 100;
+    const PER_PAGE = 20;
     let currentPage = 0;
-    const pageSize = 20;
-    let lastResult = null;
-    let logs = JSON.parse(localStorage.getItem('sw25_logs') || '[]');
+    let logs = [];
+    const MAX_LOGS = 100;
 
-    window.onload = () => {
-        renderPlusButtons();
-        renderDxOptions();
-        renderLogs();
-        loadCustomDice();
+    let charList = {
+        pc: ["PC1", "PC2", "PC3", "PC4", "PC5"],
+        enemy: ["敵1", "敵2", "敵3", "敵4"]
     };
 
-    // 2d6ロール（クリティカル・ファンブル判定付き）
-    function roll2d6(mod) {
+    let pendingRollData = null;
+
+    // --- 威力表データ (0〜100, 5刻み近似対応) ---
+    // 配列index: 2d6の出目2〜12に対応 (index 0=2, 1=3 ... 10=12)
+    // 2は自動失敗扱いだが表としては0
+    const RATE_TABLE = {
+        0:  [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
+        10: [0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 5],
+        20: [0, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        30: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        40: [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11],
+        50: [0, 1, 3, 4, 5, 7, 8, 9, 10, 11, 12],
+        60: [0, 2, 3, 4, 6, 8, 9, 10, 11, 12, 13],
+        70: [0, 2, 3, 5, 7, 9, 10, 11, 12, 13, 14],
+        80: [0, 2, 4, 6, 8, 10, 11, 12, 13, 14, 15],
+        90: [0, 3, 4, 6, 8, 10, 12, 13, 14, 15, 16],
+        100:[0, 3, 5, 7, 9, 11, 12, 13, 14, 15, 16]
+    };
+
+    window.onload = function() {
+        loadData();
+        renderPagination();
+        renderModButtons(0);
+        const select = document.getElementById('any-dice-select');
+        for(let i=1; i<=100; i++){
+            const opt = document.createElement('option');
+            opt.value = i; opt.textContent = `1d${i}`;
+            if(i === 100) opt.selected = true;
+            select.appendChild(opt);
+        }
+    };
+
+    // --- ロール開始フロー ---
+
+    function startRoll(type, mod = 0) {
+        pendingRollData = { type: type, mod: mod };
+        openCharModal();
+    }
+
+    function startDamageRoll() {
+        const k = parseInt(document.getElementById('dmgRate').value) || 0;
+        const c = parseInt(document.getElementById('dmgCrit').value) || 10;
+        const m = parseInt(document.getElementById('dmgMod').value) || 0;
+        pendingRollData = { type: 'damage', k: k, c: c, m: m };
+        openCharModal();
+    }
+
+    function openCharModal() {
+        const modal = document.getElementById('charModal');
+        const list = document.getElementById('modalCharList');
+        list.innerHTML = "";
+        [...charList.pc, ...charList.enemy].forEach((name, i) => {
+            const btn = document.createElement('button');
+            btn.className = `modal-char-btn ${i < charList.pc.length ? 'pc' : 'enemy'}`;
+            btn.textContent = name;
+            btn.onclick = () => executeRoll(name);
+            list.appendChild(btn);
+        });
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('charModal').style.display = 'none';
+        pendingRollData = null;
+    }
+
+    function executeRoll(charName) {
+        document.getElementById('charModal').style.display = 'none';
+        if(!pendingRollData) return;
+
+        const d = pendingRollData;
+        if (d.type === '2d6') roll2d6(d.mod, charName);
+        else if (d.type === 'any') rollAnyDice(charName);
+        else if (d.type === 'custom') rollCustom(charName);
+        else if (d.type === 'damage') calcDamage(charName, d.k, d.c, d.m);
+    }
+
+    // --- ダイス計算ロジック ---
+
+    function roll2d6(mod, charName) {
+        const r = rollD6Pair();
+        let note = ""; let style = "";
+        if (r.sum === 12) { note = " (自動成功)"; style = "crit"; }
+        else if (r.sum === 2) { note = " (自動失敗)"; style = "fumble"; }
+        addLog(charName, `2d6${fmtMod(mod)}`, r.sum + mod, `[${r.d1},${r.d2}]${fmtMod(mod)}${note}`, style);
+    }
+
+    function rollAnyDice(charName) {
+        const s = parseInt(document.getElementById('any-dice-select').value);
+        const r = Math.floor(Math.random() * s) + 1;
+        addLog(charName, `1d${s}`, r, `[${r}]`);
+    }
+
+    function rollCustom(charName) {
+        const c = parseInt(document.getElementById('customDiceCount').value) || 1;
+        const s = parseInt(document.getElementById('customDiceSides').value) || 6;
+        const m = parseInt(document.getElementById('customDiceMod').value) || 0;
+        let rolls = []; let sum = 0;
+        for(let i=0; i<c; i++) { let r = Math.floor(Math.random() * s) + 1; rolls.push(r); sum += r; }
+        let detail = `[${rolls.join(',')}]`;
+        if(detail.length > 20) detail = `[Sum:${sum}]`;
+        addLog(charName, `${c}d${s}${fmtMod(m)}`, sum + m, `${detail}${fmtMod(m)}`);
+    }
+
+    // --- ダメージ計算 (威力表) ---
+    function calcDamage(charName, k, c, m) {
+        let totalDmg = 0;
+        let rolls = [];
+        let isFirst = true;
+        let looping = true;
+        let style = "";
+
+        // 威力表データの取得近似 (10刻みで一番近いもの、あるいは切り捨て)
+        // 簡易実装として、1の位を切り捨てて10刻みのキーを使う
+        let tableKey = Math.floor(k / 10) * 10;
+        if (tableKey > 100) tableKey = 100;
+        
+        while (looping) {
+            const r = rollD6Pair();
+            
+            // 初回ファンブル
+            if (isFirst && r.sum === 2) {
+                rolls.push(`[${r.d1},${r.d2} ✖]`);
+                style = "fumble";
+                looping = false;
+                break;
+            }
+
+            // 回転中のファンブル(自動失敗はないが振り足し終了)
+            if (!isFirst && r.sum === 2) {
+                rolls.push(`[${r.d1},${r.d2}]`);
+                looping = false; // 加算なしで終了
+                break;
+            }
+
+            // 威力表参照
+            // indexは sum - 2 (例: 出目2 -> idx0)
+            const baseDmg = RATE_TABLE[tableKey][r.sum - 2];
+            totalDmg += baseDmg;
+            
+            // クリティカル判定
+            if (r.sum >= c && r.sum !== 2) { // C値以上なら継続
+                rolls.push(`[${r.d1},${r.d2} C]`);
+                style = "crit";
+                isFirst = false;
+                // 無限ループ防止（万が一のため20回で止める）
+                if (rolls.length > 20) looping = false;
+            } else {
+                rolls.push(`[${r.d1},${r.d2}]`);
+                looping = false;
+            }
+        }
+
+        const total = totalDmg + m;
+        const rollDetail = rolls.join("→");
+        addLog(charName, `威力${k}@${c}${fmtMod(m)}`, total, `(回転:${rollDetail})`, style);
+    }
+
+    function rollD6Pair() {
         const d1 = Math.floor(Math.random() * 6) + 1;
         const d2 = Math.floor(Math.random() * 6) + 1;
-        const diceSum = d1 + d2;
-        const total = diceSum + mod;
-        const formula = `2d6${mod > 0 ? '+' + mod : ''} [${d1},${d2}]`;
-        
-        // 判定ロジック
-        let status = null;
-        if (diceSum === 2) {
-            status = 'fumble';
-        } else if (diceSum === 12) {
-            status = 'critical';
+        return { d1, d2, sum: d1 + d2 };
+    }
+
+    function fmtMod(m) { return m === 0 ? '' : (m > 0 ? '+' + m : m); }
+
+    // --- 共通機能 ---
+
+    function openRenameTool() {
+        const input = prompt("変更したいPC番号(1-5) または 敵番号(101-104)を入力:");
+        if(!input) return;
+        const num = parseInt(input);
+        if(num >= 1 && num <= charList.pc.length) {
+            const newN = prompt("新しい名前:", charList.pc[num-1]);
+            if(newN) { charList.pc[num-1] = newN; saveData(); }
+        } else if (num >= 101 && num <= 100 + charList.enemy.length) {
+             const idx = num - 101;
+             const newN = prompt("新しい名前:", charList.enemy[idx]);
+             if(newN) { charList.enemy[idx] = newN; saveData(); }
         }
-
-        addLog(formula, total, status);
     }
 
-    function rollDx() {
-        const sides = document.getElementById('dx-select').value;
-        const result = Math.floor(Math.random() * sides) + 1;
-        addLog(`1d${sides}`, result, null);
-    }
-
-    function rollCustom() {
-        const num = parseInt(document.getElementById('custom-num').value) || 1;
-        const sides = parseInt(document.getElementById('custom-sides').value) || 6;
-        const mod = parseInt(document.getElementById('custom-mod').value) || 0;
-        
-        let diceResults = [];
-        let sum = 0;
-        for(let i=0; i<num; i++) {
-            const r = Math.floor(Math.random() * sides) + 1;
-            diceResults.push(r);
-            sum += r;
-        }
-        const total = sum + mod;
-        const formula = `${num}d${sides}${mod !== 0 ? (mod > 0 ? '+' + mod : mod) : ''} [${diceResults.join(',')}]`;
-        
-        localStorage.setItem('sw25_custom', JSON.stringify({num, sides, mod}));
-        // カスタムロールではSW2.5特有の自動成功・失敗判定は行わない（指示通り）
-        addLog(formula, total, null);
-    }
-
-    // ログ追加（status引数を追加）
-    function addLog(formula, total, status) {
-        const isConsecutive = (total === lastResult);
-        const timestamp = new Date().toLocaleTimeString();
-        const logEntry = { formula, total, timestamp, isConsecutive, status };
-        
-        logs.unshift(logEntry);
-        if (logs.length > 100) logs.pop();
-        
-        lastResult = total;
-        saveAndRenderLogs();
-    }
-
-    function saveAndRenderLogs() {
-        localStorage.setItem('sw25_logs', JSON.stringify(logs));
+    function addLog(charName, diceType, result, detail, styleClass = "") {
+        const log = {
+            time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+            char: charName, dice: diceType, result: result, detail: detail, style: styleClass
+        };
+        logs.unshift(log);
+        if (logs.length > MAX_LOGS) logs.pop();
+        saveData();
         renderLogs();
     }
 
     function renderLogs() {
         const container = document.getElementById('log-container');
-        container.innerHTML = logs.map(l => {
-            let statusBadge = '';
-            if (l.status === 'critical') statusBadge = '<span class="badge critical-badge">自動成功</span>';
-            if (l.status === 'fumble') statusBadge = '<span class="badge fumble-badge">自動失敗</span>';
-            const conBadge = l.isConsecutive ? '<span class="badge consecutive-badge">連続</span>' : '';
-
-            return `
-                <div class="log-item">
-                    <small>${l.timestamp}</small>${statusBadge}${conBadge}<br>
-                    <strong>${l.formula} ➔ ${l.total}</strong>
+        container.innerHTML = logs.length ? "" : '<div style="text-align:center; color:#999; padding:20px;">履歴なし</div>';
+        logs.forEach((l, index) => {
+            const div = document.createElement('div');
+            div.className = `log-entry ${l.style}`;
+            div.innerHTML = `
+                <div class="log-content">
+                    <div class="log-header">${l.time} : ${l.char} (${l.dice})</div>
+                    <div class="log-detail">${l.detail}</div>
+                </div>
+                <div class="log-right">
+                    <div class="log-result">${l.result}</div>
+                    <button class="del-entry-btn" onclick="deleteLog(${index})" title="削除">×</button>
                 </div>
             `;
-        }).join('');
+            container.appendChild(div);
+        });
     }
 
-    function clearLog() {
-        if(confirm('ログを削除しますか？')) {
-            logs = [];
-            lastResult = null;
-            saveAndRenderLogs();
+    function deleteLog(index) { logs.splice(index, 1); saveData(); renderLogs(); }
+    function saveData() { localStorage.setItem('sw25_logs', JSON.stringify(logs)); localStorage.setItem('sw25_chars', JSON.stringify(charList)); }
+    function loadData() { logs = JSON.parse(localStorage.getItem('sw25_logs') || "[]"); charList = JSON.parse(localStorage.getItem('sw25_chars') || JSON.stringify(charList)); renderLogs(); }
+    function clearLog() { if(confirm("履歴を全消去しますか？")) { logs = []; saveData(); renderLogs(); } }
+    function downloadLog() {
+        let text = logs.map(l => `${l.time} [${l.char}] ${l.dice} -> ${l.result} ${l.detail}`).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+        a.download = `log_${new Date().toISOString().slice(0,10)}.txt`; a.click();
+    }
+
+    function renderPagination() {
+        const pag = document.getElementById('pagination'); pag.innerHTML = "";
+        for (let i = 0; i < Math.ceil(TOTAL_MODS / PER_PAGE); i++) {
+            const btn = document.createElement('button');
+            btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+            btn.textContent = `+${i * PER_PAGE + 1}~`;
+            btn.onclick = () => { currentPage = i; renderPagination(); renderModButtons(i); };
+            pag.appendChild(btn);
         }
     }
-
-    function renderPlusButtons() {
-        const grid = document.getElementById('plus-buttons-grid');
-        grid.innerHTML = '';
-        const start = (currentPage * pageSize) + 1;
-        const end = Math.min(start + pageSize - 1, 100);
-
-        document.getElementById('page-info').innerText = `修正値: +${start} 〜 +${end}`;
-
-        for (let i = start; i <= end; i++) {
+    function renderModButtons(idx) {
+        const grid = document.getElementById('modGrid'); grid.innerHTML = "";
+        for (let i = idx * PER_PAGE + 1; i <= Math.min((idx + 1) * PER_PAGE, TOTAL_MODS); i++) {
             const btn = document.createElement('button');
-            btn.className = 'btn';
-            btn.innerText = `+${i}`;
-            btn.onclick = () => roll2d6(i);
+            btn.className = "mod-btn"; btn.textContent = `+${i}`;
+            btn.onclick = () => startRoll('2d6', i);
             grid.appendChild(btn);
         }
     }
-
-    function changePage(dir) {
-        currentPage += dir;
-        if (currentPage < 0) currentPage = 4;
-        if (currentPage > 4) currentPage = 0;
-        renderPlusButtons();
-    }
-
-    function renderDxOptions() {
-        const select = document.getElementById('dx-select');
-        for (let i = 1; i <= 100; i++) {
-            const opt = document.createElement('option');
-            opt.value = i;
-            opt.text = i;
-            if(i === 10) opt.selected = true;
-            select.appendChild(opt);
-        }
-    }
-
-    function loadCustomDice() {
-        const saved = JSON.parse(localStorage.getItem('sw25_custom'));
-        if(saved) {
-            document.getElementById('custom-num').value = saved.num;
-            document.getElementById('custom-sides').value = saved.sides;
-            document.getElementById('custom-mod').value = saved.mod;
-        }
-    }
 </script>
-
 </body>
 </html>
