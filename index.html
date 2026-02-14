@@ -3,12 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SW2.5 Dice Roller (Formula + Select)</title>
+<title>SW2.5 Dice Roller (K:1-50 Ver)</title>
 <style>
     :root {
         --primary: #2563eb;
         --primary-light: #3b82f6;
-        --enemy-color: #ef4444;
         --bg: #f3f4f6;
         --surface: #ffffff;
         --text: #1f2937;
@@ -56,7 +55,7 @@
     }
     .dmg-group { display: flex; flex-direction: column; gap: 2px; }
     .dmg-group label { font-size: 11px; color: #555; font-weight: bold; }
-    .dmg-select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: white; width: 75px; text-align: center; }
+    .dmg-select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: white; width: 85px; text-align: center; }
     .dmg-btn {
         background: #ea580c; color: white; border: none; padding: 10px 20px;
         border-radius: 8px; font-weight: bold; flex-grow: 1; min-width: 80px;
@@ -79,7 +78,7 @@
     .log-entry.fumble { border-left-color: var(--fumble); background: #fee2e2; }
     .log-content { flex-grow: 1; width: 70%; }
     .log-header { font-size: 11px; color: #666; margin-bottom: 2px; }
-    .log-detail { font-size: 12px; color: #888; white-space: pre-wrap; }
+    .log-detail { font-size: 12px; color: #888; white-space: pre-wrap; line-height: 1.4; }
     .log-result { font-weight: bold; font-size: 20px; text-align: right; width: 25%; }
     
     .del-entry-btn {
@@ -102,12 +101,12 @@
 <body>
 
 <header>
-    <button class="rename-btn" onclick="openRenameTool()">キャラクター名編集</button>
+    <button class="rename-btn" onclick="openRenameTool()">名前編集</button>
 </header>
 
 <main>
     <div class="section">
-        <h3>ダメージ算出 (威力表式)</h3>
+        <h3>ダメージ算出 (威力表 k0-50)</h3>
         <div class="dmg-controls">
             <div class="dmg-group">
                 <label>威力(k)</label>
@@ -127,7 +126,7 @@
             </div>
             <button class="dmg-btn" onclick="startDamageRoll()">算出</button>
         </div>
-        <div style="font-size:11px; color:#888;">計算式: round( k × (出目-2) / 10 )</div>
+        <div style="font-size:10px; color:#999;">※威力0〜50の専用テーブルを参照します。</div>
     </div>
 
     <div class="section">
@@ -144,7 +143,7 @@
     <div class="section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h3>履歴</h3>
-            <button style="color:red; background:none; border:none; cursor:pointer;" onclick="clearLog()">全削除</button>
+            <button style="color:red; background:none; border:none; cursor:pointer; font-size:12px;" onclick="clearLog()">履歴削除</button>
         </div>
         <div id="log-container"></div>
     </div>
@@ -159,44 +158,59 @@
 </div>
 
 <script>
+    const RATING_DATA = {
+        0:  [0,0,0,1,2,2,3,3,4,4],
+        5:  [0,1,1,2,2,3,4,5,5,5],
+        10: [1,1,2,3,3,4,5,5,6,7],
+        15: [1,2,3,4,4,5,5,6,7,8],
+        20: [1,2,3,4,5,6,7,8,9,10],
+        25: [2,3,4,5,6,7,8,8,9,10],
+        30: [2,4,4,6,7,8,9,10,10,10],
+        35: [3,4,5,7,8,9,10,10,11,12],
+        40: [4,5,6,7,9,10,11,11,12,13],
+        45: [4,6,7,9,10,10,11,12,13,14],
+        50: [4,6,8,10,10,12,12,13,15,15]
+    };
+
     let logs = [];
-    const MAX_LOGS = 50;
     let charList = { pc: ["PC1", "PC2", "PC3", "PC4", "PC5"], enemy: ["敵1", "敵2", "敵3"] };
     let pendingRollData = null;
     let currentPage = 0;
 
     window.onload = () => {
-        setupSelects(); // プルダウン生成
+        setupSelects();
         loadData();
         renderPagination();
         renderModButtons(0);
     };
 
-    // --- プルダウン生成 (0〜100) ---
     function setupSelects() {
         const kSelect = document.getElementById('dmgRate');
         const mSelect = document.getElementById('dmgMod');
         
-        for (let i = 0; i <= 100; i++) {
-            const optK = document.createElement('option');
-            optK.value = i; optK.textContent = i;
-            if (i === 20) optK.selected = true; // デフォルト威力20
-            kSelect.appendChild(optK);
+        // 威力(k)は0〜50までに制限
+        for (let i = 0; i <= 50; i++) {
+            const ok = document.createElement('option');
+            ok.value = i; ok.textContent = i;
+            if(i === 20) ok.selected = true;
+            kSelect.appendChild(ok);
+        }
 
-            const optM = document.createElement('option');
-            optM.value = i; optM.textContent = i;
-            mSelect.appendChild(optM);
+        // 追加ダメージは使いやすいよう0〜100を維持
+        for (let i = 0; i <= 100; i++) {
+            const om = document.createElement('option');
+            om.value = i; om.textContent = i;
+            mSelect.appendChild(om);
         }
     }
 
-    // --- 威力表の計算エンジン (清松式) ---
     function getRatingResult(k, roll) {
         if (roll <= 2) return 0;
-        if (k === 0) return (roll >= 12) ? 1 : 0;
+        if (RATING_DATA[k]) return RATING_DATA[k][roll - 3];
+        // テーブルにない端数は計算式で補完
         return Math.round( k * (roll - 2) / 10 );
     }
 
-    // --- ロール処理 ---
     function startRoll(type, mod = 0) {
         pendingRollData = { type, mod };
         openCharModal();
@@ -218,10 +232,8 @@
         if (!d) return;
 
         if (d.type === '2d6') {
-            const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1;
-            const sum = r1 + r2;
-            let s = "";
-            if(sum===12) s="crit"; if(sum===2) s="fumble";
+            const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1, sum = r1 + r2;
+            let s = (sum===12)?"crit":(sum===2)?"fumble":"";
             addLog(charName, `2d6+${d.mod}`, sum+d.mod, `[${r1},${r2}]+${d.mod}`, s);
         } else if (d.type === 'damage') {
             calcDamage(charName, d.k, d.c, d.m);
@@ -232,34 +244,24 @@
         let ratingTotal = 0, rollTexts = [], isFirst = true, isFumble = false, loop = true;
 
         while (loop) {
-            const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1;
-            const sum = r1 + r2;
-            
+            const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1, sum = r1 + r2;
             if (isFirst && sum === 2) {
-                rollTexts.push(`[${r1},${r2}]ファンブル`);
-                isFumble = true; loop = false; break;
+                rollTexts.push(`[${r1},${r2}]自動失敗`);
+                isFumble = true; break;
             }
-
             const res = getRatingResult(k, sum);
             ratingTotal += res;
             rollTexts.push(`[${r1},${r2}]→${res}`);
-
-            if (sum >= c && sum !== 2) {
-                isFirst = false;
-            } else {
-                loop = false;
-            }
+            if (sum >= c && sum !== 2) isFirst = false; else loop = false;
             if (rollTexts.length > 20) loop = false; 
         }
 
         const final = isFumble ? 0 : (ratingTotal + m);
         let detail = `内訳: ${rollTexts.join(" + ")}`;
         if(!isFumble) detail += `\n(威力計:${ratingTotal} + 追加D:${m})`;
-        
         addLog(charName, `威力${k}@${c}+${m}`, final, detail, isFumble ? "fumble" : (rollTexts.length > 1 ? "crit" : ""));
     }
 
-    // --- UI制御・保存等 ---
     function openCharModal() {
         const list = document.getElementById('modalCharList');
         list.innerHTML = "";
@@ -278,7 +280,7 @@
 
     function addLog(char, dice, result, detail, style) {
         logs.unshift({ time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}), char, dice, result, detail, style });
-        if(logs.length > MAX_LOGS) logs.pop();
+        if(logs.length > 30) logs.pop();
         saveData(); renderLogs();
     }
     function renderLogs() {
@@ -297,23 +299,21 @@
 
     function deleteLog(i) { logs.splice(i, 1); saveData(); renderLogs(); }
     function clearLog() { if(confirm("履歴を削除しますか？")){ logs=[]; saveData(); renderLogs(); } }
-    function saveData() { localStorage.setItem('sw25_v5', JSON.stringify({logs, charList})); }
+    function saveData() { localStorage.setItem('sw25_v6_k50', JSON.stringify({logs, charList})); }
     function loadData() {
-        const d = JSON.parse(localStorage.getItem('sw25_v5') || "{}");
+        const d = JSON.parse(localStorage.getItem('sw25_v6_k50') || "{}");
         if(d.logs) logs = d.logs;
         if(d.charList) charList = d.charList;
         renderLogs();
     }
-
     function openRenameTool() {
-        const id = prompt("変更する番号 PC(1-5), 敵(101-103):");
+        const id = prompt("番号: PC(1-5), 敵(101-103):");
         if(!id) return;
         const n = parseInt(id);
         if(n>=1 && n<=5) { const name=prompt("PC名:", charList.pc[n-1]); if(name) charList.pc[n-1]=name; }
         else if(n>=101 && n<=103) { const name=prompt("敵名:", charList.enemy[n-101]); if(name) charList.enemy[n-101]=name; }
         saveData();
     }
-
     function renderPagination() {
         const pag = document.getElementById('pagination'); pag.innerHTML = "";
         for (let i = 0; i < 5; i++) {
