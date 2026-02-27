@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SW2.5 Dice Roller (Turn End Ver)</title>
+<title>SW2.5 Dice Roller</title>
 <style>
     :root {
         --primary: #2563eb;
         --primary-light: #3b82f6;
+        --enemy-color: #ef4444;
         --bg: #f3f4f6;
         --surface: #ffffff;
         --text: #1f2937;
@@ -20,6 +21,7 @@
         display: flex; flex-direction: column; height: 100vh; overflow: hidden;
     }
 
+    /* ヘッダー（名前編集用） */
     header {
         background: var(--surface); padding: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10;
@@ -27,17 +29,23 @@
     }
     button.rename-btn { 
         padding: 6px 12px; background: #f9fafb; border: 1px solid #ccc; 
-        border-radius: 6px; font-size: 12px; color: #555; cursor: pointer;
+        border-radius: 6px; font-size: 12px; color: #555;
     }
 
+    /* メインエリア */
     main { flex: 1; overflow-y: auto; padding: 10px; }
 
     .section {
         background: var(--surface); padding: 15px; border-radius: 12px;
         margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    h3 { margin: 0 0 10px 0; font-size: 16px; color: #555; }
+    
+    .section-header {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+    }
+    h3 { margin: 0; font-size: 16px; color: #555; }
 
+    /* 2d6ボタン */
     .main-roll-btn {
         background: var(--primary);
         color: white; border: none; padding: 15px 40px; border-radius: 40px;
@@ -47,101 +55,104 @@
         gap: 2px; transition: transform 0.1s;
     }
     .main-roll-btn:active { transform: scale(0.95); background: var(--primary-light); }
-    .main-roll-btn span { font-size: 12px; font-weight: normal; opacity: 0.9; }
+    .main-roll-btn span { font-size: 12px; font-weight: normal; opacity: 0.9; letter-spacing: 1px; }
 
-    .dmg-controls {
-        display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
-        background: #eff6ff; padding: 10px; border-radius: 8px; margin-bottom: 10px;
-    }
-    .dmg-group { display: flex; flex-direction: column; gap: 2px; }
-    .dmg-group label { font-size: 11px; color: #555; font-weight: bold; }
-    .dmg-select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: white; width: 85px; text-align: center; }
-    .dmg-btn {
-        background: #ea580c; color: white; border: none; padding: 10px 20px;
-        border-radius: 8px; font-weight: bold; flex-grow: 1; min-width: 80px;
-        box-shadow: 0 2px 5px rgba(234, 88, 12, 0.3); cursor: pointer;
-    }
-
+    /* ページネーション */
     .pagination { display: flex; overflow-x: auto; gap: 5px; margin-bottom: 10px; padding-bottom: 5px; }
-    .page-btn { padding: 6px 12px; border: 1px solid var(--primary); background: var(--surface); color: var(--primary); border-radius: 20px; white-space: nowrap; font-size: 13px; cursor: pointer; }
+    .page-btn { padding: 6px 12px; border: 1px solid var(--primary); background: var(--surface); color: var(--primary); border-radius: 20px; white-space: nowrap; font-size: 13px; }
     .page-btn.active { background: var(--primary); color: white; }
     
     .mod-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-    .mod-btn { background: #e0f2fe; color: #0369a1; border: none; padding: 12px 0; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; }
+    .mod-btn { background: #e0f2fe; color: #0369a1; border: none; padding: 12px 0; border-radius: 8px; font-weight: bold; font-size: 14px; }
 
+    /* その他ダイス */
+    .custom-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+    select, input[type="number"] { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: white; }
+    .action-btn { background: var(--text); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    .action-btn:active { transform: scale(0.95); }
+
+    /* ログ */
     .log-entry {
         border-left: 4px solid #ccc; padding: 8px 12px; background: #f9fafb;
         margin-bottom: 8px; border-radius: 0 4px 4px 0;
         display: flex; justify-content: space-between; align-items: center;
+        position: relative;
     }
     .log-entry.crit { border-left-color: var(--crit); background: #d1fae5; }
     .log-entry.fumble { border-left-color: var(--fumble); background: #fee2e2; }
-    .log-content { flex-grow: 1; width: 70%; }
+    
+    .log-content { flex-grow: 1; }
     .log-header { font-size: 11px; color: #666; margin-bottom: 2px; }
-    .log-detail { font-size: 12px; color: #888; white-space: pre-wrap; line-height: 1.4; }
-    .log-result { font-weight: bold; font-size: 20px; text-align: right; width: 25%; }
+    .log-detail { font-size: 12px; color: #888; }
+    
+    .log-right { display: flex; align-items: center; gap: 15px; }
+    .log-result { font-weight: bold; font-size: 22px; min-width: 30px; text-align: right; }
     
     .del-entry-btn {
         background: #eee; color: #999; border: none; width: 24px; height: 24px;
         border-radius: 50%; font-size: 16px; cursor: pointer; display: flex;
-        align-items: center; justify-content: center; flex-shrink: 0;
+        align-items: center; justify-content: center; line-height: 1;
     }
+    .del-entry-btn:hover { background: #ddd; color: #666; }
 
-    /* ターン終了用の専用スタイル */
+    /* ターン終了ログ用デザイン */
     .log-turn-end {
-        background: #4b5563; color: white; padding: 6px 12px;
-        margin-bottom: 8px; border-radius: 4px; font-weight: bold;
-        font-size: 12px; text-align: center; letter-spacing: 2px;
-        display: flex; justify-content: space-between; align-items: center;
+        display: flex; align-items: center; justify-content: space-between;
+        margin: 12px 0; padding: 4px 8px; background: #e5e7eb;
+        border-radius: 6px; color: #4b5563; font-size: 12px; font-weight: bold;
     }
+    .turn-end-line { flex-grow: 1; height: 1px; background: #9ca3af; margin: 0 10px; }
 
+    .text-btn { background: none; border: none; color: var(--primary); font-size: 14px; text-decoration: underline; margin-left: 10px; cursor: pointer; }
+    .text-btn.danger { color: var(--fumble); }
+    .turn-end-btn { background: #4b5563; color: white; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .turn-end-btn:active { transform: scale(0.95); }
+
+    /* --- モーダル (キャラクター選択) --- */
     .modal-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.5); z-index: 100;
         display: none; justify-content: center; align-items: center;
     }
-    .modal-content { background: white; width: 90%; max-width: 400px; border-radius: 12px; padding: 20px; }
+    .modal-content {
+        background: white; width: 90%; max-width: 400px;
+        border-radius: 12px; padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        animation: fadeIn 0.2s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    
+    .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center; }
     .char-select-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-    .modal-char-btn { padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px; background: white; font-weight: bold; cursor: pointer; }
-    .modal-char-btn.enemy { border-color: #fca5a5; color: #b91c1c; }
+    
+    .modal-char-btn {
+        padding: 12px; border: 2px solid #e5e7eb; border-radius: 8px;
+        background: white; font-weight: bold; cursor: pointer;
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .modal-char-btn.pc { border-color: var(--primary-light); color: var(--primary); background: #eff6ff; }
+    .modal-char-btn.enemy { border-color: var(--fumble); color: var(--fumble); background: #fef2f2; }
+    
+    .modal-close {
+        width: 100%; padding: 12px; background: #eee; border: none;
+        border-radius: 8px; font-size: 14px; color: #555; cursor: pointer;
+    }
+
 </style>
 </head>
 <body>
 
 <header>
-    <button class="rename-btn" onclick="openRenameTool()">名前編集</button>
+    <button class="rename-btn" onclick="openRenameTool()">キャラクター名編集</button>
 </header>
 
 <main>
     <div class="section">
-        <h3>ダメージ算出 (威力表 k0-50)</h3>
-        <div class="dmg-controls">
-            <div class="dmg-group">
-                <label>威力(k)</label>
-                <select id="dmgRate" class="dmg-select"></select>
-            </div>
-            <div class="dmg-group">
-                <label>C値</label>
-                <select id="dmgCrit" class="dmg-select">
-                    <option value="8">8</option><option value="9">9</option>
-                    <option value="10" selected>10</option><option value="11">11</option>
-                    <option value="12">12</option><option value="13">なし</option>
-                </select>
-            </div>
-            <div class="dmg-group">
-                <label>追加D</label>
-                <select id="dmgMod" class="dmg-select"></select>
-            </div>
-            <button class="dmg-btn" onclick="startDamageRoll()">算出</button>
-        </div>
-        <div style="font-size:10px; color:#999;">※威力0〜50の専用テーブルを参照します。</div>
-    </div>
-
-    <div class="section">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>判定 (2d6)</h3>
+        <div class="section-header">
+            <h3>威力・判定</h3>
             <button class="main-roll-btn" onclick="startRoll('2d6', 0)">
-                2d6<span>(平目)</span>
+                2d6
+                <span>(平目)</span>
             </button>
         </div>
         <div class="pagination" id="pagination"></div>
@@ -149,11 +160,31 @@
     </div>
 
     <div class="section">
+        <h3>その他ダイス</h3>
+        <div class="custom-row">
+            <select id="any-dice-select" style="min-width: 100px;"></select>
+            <button class="action-btn" onclick="startRoll('any')">振る</button>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
+        <div class="custom-row">
+            <input type="number" id="customDiceCount" value="1" min="1" style="width: 50px;">
+            <span>d</span>
+            <input type="number" id="customDiceSides" value="6" min="2" style="width: 50px;">
+            <span>+</span>
+            <input type="number" id="customDiceMod" value="0" style="width: 50px;">
+            <button class="action-btn" onclick="startRoll('custom')">振る</button>
+        </div>
+    </div>
+
+    <div class="section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3>履歴</h3>
-            <div style="display:flex; gap:8px;">
-                <button style="padding:4px 10px; background:#4b5563; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;" onclick="addTurnEnd()">▼ ターン終了 ▼</button>
-                <button style="color:red; background:none; border:none; cursor:pointer; font-size:12px;" onclick="clearLog()">全削除</button>
+            <div style="display:flex; align-items:center; gap: 10px;">
+                <h3 style="margin:0;">履歴</h3>
+                <button class="turn-end-btn" onclick="addTurnEndLog()">▼ ターン終了 ▼</button>
+            </div>
+            <div>
+                <button class="text-btn" onclick="downloadLog()">保存</button>
+                <button class="text-btn danger" onclick="clearLog()">全削除</button>
             </div>
         </div>
         <div id="log-container"></div>
@@ -162,201 +193,266 @@
 
 <div id="charModal" class="modal-overlay">
     <div class="modal-content">
-        <div style="font-weight:bold; text-align:center; margin-bottom:15px;">誰が振りますか？</div>
+        <div class="modal-title">誰が振りますか？</div>
         <div id="modalCharList" class="char-select-grid"></div>
-        <button style="width:100%; padding:10px; border:none; border-radius:8px;" onclick="closeModal()">キャンセル</button>
+        <button class="modal-close" onclick="closeModal()">キャンセル</button>
     </div>
 </div>
 
 <script>
-    const RATING_DATA = {
-        0:  [0,0,0,1,2,2,3,3,4,4],
-        5:  [0,1,1,2,2,3,4,5,5,5],
-        10: [1,1,2,3,3,4,5,5,6,7],
-        15: [1,2,3,4,4,5,5,6,7,8],
-        20: [1,2,3,4,5,6,7,8,9,10],
-        25: [2,3,4,5,6,7,8,8,9,10],
-        30: [2,4,4,6,7,8,9,10,10,10],
-        35: [3,4,5,7,8,9,10,10,11,12],
-        40: [4,5,6,7,9,10,11,11,12,13],
-        45: [4,6,7,9,10,10,11,12,13,14],
-        50: [4,6,8,10,10,12,12,13,15,15]
+    const TOTAL_MODS = 100;
+    const PER_PAGE = 20;
+    let currentPage = 0;
+    let logs = [];
+    const MAX_LOGS = 100;
+
+    let charList = {
+        pc: ["PC1", "PC2", "PC3", "PC4", "PC5"],
+        enemy: ["敵1", "敵2", "敵3", "敵4"]
     };
 
-    let logs = [];
-    let charList = { pc: ["PC1", "PC2", "PC3", "PC4", "PC5"], enemy: ["敵1", "敵2", "敵3"] };
+    // 保留中のダイス情報
     let pendingRollData = null;
-    let currentPage = 0;
 
-    window.onload = () => {
-        setupSelects();
+    window.onload = function() {
         loadData();
         renderPagination();
         renderModButtons(0);
+        
+        const select = document.getElementById('any-dice-select');
+        for(let i=1; i<=100; i++){
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = `1d${i}`;
+            if(i === 100) opt.selected = true;
+            select.appendChild(opt);
+        }
     };
 
-    function setupSelects() {
-        const kSelect = document.getElementById('dmgRate');
-        const mSelect = document.getElementById('dmgMod');
-        
-        for (let i = 0; i <= 50; i++) {
-            const ok = document.createElement('option');
-            ok.value = i; ok.textContent = i;
-            if(i === 20) ok.selected = true;
-            kSelect.appendChild(ok);
-        }
-
-        for (let i = 0; i <= 100; i++) {
-            const om = document.createElement('option');
-            om.value = i; om.textContent = i;
-            mSelect.appendChild(om);
-        }
-    }
-
-    function getRatingResult(k, roll) {
-        if (roll <= 2) return 0;
-        if (RATING_DATA[k]) return RATING_DATA[k][roll - 3];
-        return Math.round( k * (roll - 2) / 10 );
-    }
+    // --- ロール開始フロー ---
 
     function startRoll(type, mod = 0) {
-        pendingRollData = { type, mod };
+        pendingRollData = { type: type, mod: mod };
         openCharModal();
-    }
-
-    function startDamageRoll() {
-        pendingRollData = {
-            type: 'damage',
-            k: parseInt(document.getElementById('dmgRate').value) || 0,
-            c: parseInt(document.getElementById('dmgCrit').value) || 10,
-            m: parseInt(document.getElementById('dmgMod').value) || 0
-        };
-        openCharModal();
-    }
-
-    function executeRoll(charName) {
-        closeModal();
-        const d = pendingRollData;
-        if (!d) return;
-
-        if (d.type === '2d6') {
-            const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1, sum = r1 + r2;
-            let s = (sum===12)?"crit":(sum===2)?"fumble":"";
-            addLog({ type: 'roll', char: charName, dice: `2d6+${d.mod}`, result: sum+d.mod, detail: `[${r1},${r2}]+${d.mod}`, style: s });
-        } else if (d.type === 'damage') {
-            calcDamage(charName, d.k, d.c, d.m);
-        }
-    }
-
-    function calcDamage(charName, k, c, m) {
-        let ratingTotal = 0, rollTexts = [], isFirst = true, isFumble = false, loop = true;
-
-        while (loop) {
-            const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1, sum = r1 + r2;
-            if (isFirst && sum === 2) {
-                rollTexts.push(`[${r1},${r2}]自動失敗`);
-                isFumble = true; break;
-            }
-            const res = getRatingResult(k, sum);
-            ratingTotal += res;
-            rollTexts.push(`[${r1},${r2}]→${res}`);
-            if (sum >= c && sum !== 2) isFirst = false; else loop = false;
-            if (rollTexts.length > 20) loop = false; 
-        }
-
-        const final = isFumble ? 0 : (ratingTotal + m);
-        let detail = `内訳: ${rollTexts.join(" + ")}`;
-        if(!isFumble) detail += `\n(威力計:${ratingTotal} + 追加D:${m})`;
-        addLog({ type: 'roll', char: charName, dice: `威力${k}@${c}+${m}`, result: final, detail: detail, style: isFumble ? "fumble" : (rollTexts.length > 1 ? "crit" : "") });
-    }
-
-    function addTurnEnd() {
-        addLog({ type: 'turn_end' });
     }
 
     function openCharModal() {
+        const modal = document.getElementById('charModal');
         const list = document.getElementById('modalCharList');
         list.innerHTML = "";
-        charList.pc.forEach(n => createCharBtn(n, "pc", list));
-        charList.enemy.forEach(n => createCharBtn(n, "enemy", list));
-        document.getElementById('charModal').style.display = 'flex';
-    }
-    function createCharBtn(name, type, parent) {
-        const b = document.createElement('button');
-        b.className = `modal-char-btn ${type}`;
-        b.textContent = name;
-        b.onclick = () => executeRoll(name);
-        parent.appendChild(b);
-    }
-    function closeModal() { document.getElementById('charModal').style.display = 'none'; }
 
-    function addLog(logData) {
-        logData.time = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-        logs.unshift(logData);
-        if(logs.length > 40) logs.pop();
-        saveData(); renderLogs();
+        // PCボタン
+        charList.pc.forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = "modal-char-btn pc";
+            btn.textContent = name;
+            btn.onclick = () => executeRoll(name);
+            list.appendChild(btn);
+        });
+
+        // 敵ボタン
+        charList.enemy.forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = "modal-char-btn enemy";
+            btn.textContent = name;
+            btn.onclick = () => executeRoll(name);
+            list.appendChild(btn);
+        });
+
+        modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('charModal').style.display = 'none';
+        pendingRollData = null;
+    }
+
+    function executeRoll(charName) {
+        document.getElementById('charModal').style.display = 'none';
+        if(!pendingRollData) return;
+
+        const { type, mod } = pendingRollData;
+
+        if (type === '2d6') {
+            roll2d6(mod, charName);
+        } else if (type === 'any') {
+            rollAnyDice(charName);
+        } else if (type === 'custom') {
+            rollCustom(charName);
+        }
+    }
+
+    // --- ダイス計算ロジック ---
+
+    function roll2d6(mod, charName) {
+        const d1 = Math.floor(Math.random() * 6) + 1;
+        const d2 = Math.floor(Math.random() * 6) + 1;
+        const sum = d1 + d2;
+        let note = "";
+        let styleClass = "";
+        if (sum === 12) { note = " (自動成功)"; styleClass = "crit"; }
+        else if (sum === 2) { note = " (自動失敗)"; styleClass = "fumble"; }
+        const diceText = `2d6${mod === 0 ? '' : (mod > 0 ? '+' + mod : mod)}`;
+        addLog(charName, diceText, sum + mod, `[${d1},${d2}]${mod === 0 ? '' : ' + ' + mod}${note}`, styleClass);
+    }
+
+    function rollAnyDice(charName) {
+        const sides = parseInt(document.getElementById('any-dice-select').value);
+        const res = Math.floor(Math.random() * sides) + 1;
+        addLog(charName, `1d${sides}`, res, `[${res}]`);
+    }
+
+    function rollCustom(charName) {
+        const c = parseInt(document.getElementById('customDiceCount').value) || 1;
+        const s = parseInt(document.getElementById('customDiceSides').value) || 6;
+        const m = parseInt(document.getElementById('customDiceMod').value) || 0;
+        let rolls = []; let sum = 0;
+        for(let i=0; i<c; i++) { let r = Math.floor(Math.random() * s) + 1; rolls.push(r); sum += r; }
+        let detail = `[${rolls.join(',')}]`;
+        if(detail.length > 20) detail = `[Sum:${sum}]`;
+        addLog(charName, `${c}d${s}${m >= 0 ? (m===0?'':'+'+m) : m}`, sum + m, `${detail}${m === 0 ? '' : ' + ' + m}`);
+    }
+
+    // --- キャラクター名管理 ---
+
+    function openRenameTool() {
+        let msg = "名前を変更したいキャラクターの番号を入力してください (例: 1)\n\nPC:\n";
+        charList.pc.forEach((n, i) => msg += `${i+1}: ${n}\n`);
+        msg += "\n敵:\n";
+        charList.enemy.forEach((n, i) => msg += `${i+101}: ${n}\n`);
+        
+        const input = prompt(msg);
+        if(!input) return;
+        
+        const num = parseInt(input);
+        if(num >= 1 && num <= charList.pc.length) {
+            const newName = prompt("新しい名前:", charList.pc[num-1]);
+            if(newName) { charList.pc[num-1] = newName; saveData(); }
+        } else if (num >= 101 && num <= 100 + charList.enemy.length) {
+             const idx = num - 101;
+             const newName = prompt("新しい名前:", charList.enemy[idx]);
+             if(newName) { charList.enemy[idx] = newName; saveData(); }
+        } else {
+            alert("無効な番号です");
+        }
+    }
+
+    // --- ログ管理 ---
+    function addLog(charName, diceType, result, detail, styleClass = "") {
+        const log = {
+            type: 'roll',
+            time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+            char: charName, dice: diceType, result: result, detail: detail, style: styleClass
+        };
+        logs.unshift(log);
+        if (logs.length > MAX_LOGS) logs.pop();
+        saveData();
+        renderLogs();
+    }
+
+    function addTurnEndLog() {
+        const log = {
+            type: 'turnEnd',
+            time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+        };
+        logs.unshift(log);
+        if (logs.length > MAX_LOGS) logs.pop();
+        saveData();
+        renderLogs();
     }
 
     function renderLogs() {
-        const c = document.getElementById('log-container');
-        c.innerHTML = logs.map((l, i) => {
-            if (l.type === 'turn_end') {
-                return `
-                    <div class="log-turn-end">
-                        <span style="visibility:hidden; width:24px;"></span>
-                        <span>--- ${l.time} : ターン終了 ---</span>
-                        <button class="del-entry-btn" style="background:rgba(255,255,255,0.2); color:white;" onclick="deleteLog(${i})">×</button>
-                    </div>
+        const container = document.getElementById('log-container');
+        container.innerHTML = logs.length ? "" : '<div style="text-align:center; color:#999; padding:20px;">履歴なし</div>';
+        
+        logs.forEach((l, index) => {
+            const div = document.createElement('div');
+            
+            // ターン終了ログの描画
+            if (l.type === 'turnEnd') {
+                div.className = 'log-turn-end';
+                div.innerHTML = `
+                    <span>${l.time}</span>
+                    <div class="turn-end-line"></div>
+                    <span>▼ ターン終了</span>
+                    <div class="turn-end-line"></div>
+                    <button class="del-entry-btn" style="background:transparent;" onclick="deleteLog(${index})" title="削除">×</button>
                 `;
-            } else {
-                return `
-                    <div class="log-entry ${l.style || ''}">
-                        <div class="log-content">
-                            <div class="log-header">${l.time} : ${l.char} (${l.dice})</div>
-                            <div class="log-detail">${l.detail}</div>
-                        </div>
+            } 
+            // 通常ダイスログの描画
+            else {
+                div.className = `log-entry ${l.style || ''}`;
+                div.innerHTML = `
+                    <div class="log-content">
+                        <div class="log-header">${l.time} : ${l.char} (${l.dice})</div>
+                        <div class="log-detail">${l.detail}</div>
+                    </div>
+                    <div class="log-right">
                         <div class="log-result">${l.result}</div>
-                        <button class="del-entry-btn" onclick="deleteLog(${i})">×</button>
+                        <button class="del-entry-btn" onclick="deleteLog(${index})" title="削除">×</button>
                     </div>
                 `;
             }
-        }).join('');
+            container.appendChild(div);
+        });
     }
 
-    function deleteLog(i) { logs.splice(i, 1); saveData(); renderLogs(); }
-    function clearLog() { if(confirm("履歴を削除しますか？")){ logs=[]; saveData(); renderLogs(); } }
-    function saveData() { localStorage.setItem('sw25_v7_turn', JSON.stringify({logs, charList})); }
-    function loadData() {
-        const d = JSON.parse(localStorage.getItem('sw25_v7_turn') || "{}");
-        if(d.logs) logs = d.logs;
-        if(d.charList) charList = d.charList;
+    function deleteLog(index) {
+        logs.splice(index, 1);
+        saveData();
         renderLogs();
     }
-    function openRenameTool() {
-        const id = prompt("番号: PC(1-5), 敵(101-103):");
-        if(!id) return;
-        const n = parseInt(id);
-        if(n>=1 && n<=5) { const name=prompt("PC名:", charList.pc[n-1]); if(name) charList.pc[n-1]=name; }
-        else if(n>=101 && n<=103) { const name=prompt("敵名:", charList.enemy[n-101]); if(name) charList.enemy[n-101]=name; }
-        saveData();
+
+    function saveData() {
+        localStorage.setItem('sw25_logs', JSON.stringify(logs));
+        localStorage.setItem('sw25_chars', JSON.stringify(charList));
     }
+
+    function loadData() {
+        logs = JSON.parse(localStorage.getItem('sw25_logs') || "[]");
+        charList = JSON.parse(localStorage.getItem('sw25_chars') || JSON.stringify(charList));
+        renderLogs();
+    }
+
+    function clearLog() { if(confirm("すべての履歴を消去しますか？")) { logs = []; saveData(); renderLogs(); } }
+
+    function downloadLog() {
+        let text = logs.map(l => {
+            if (l.type === 'turnEnd') {
+                return `--- ${l.time} ターン終了 ---`;
+            } else {
+                return `${l.time} [${l.char}] ${l.dice} -> ${l.result} (${l.detail})`;
+            }
+        }).join('\n');
+        
+        const blob = new Blob([text], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `log_${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+    }
+
     function renderPagination() {
-        const pag = document.getElementById('pagination'); pag.innerHTML = "";
-        for (let i = 0; i < 5; i++) {
-            const b = document.createElement('button');
-            b.className = `page-btn ${i === currentPage ? 'active' : ''}`;
-            b.textContent = `+${i * 20 + 1}~`;
-            b.onclick = () => { currentPage = i; renderPagination(); renderModButtons(i); };
-            pag.appendChild(b);
+        const pag = document.getElementById('pagination');
+        pag.innerHTML = "";
+        for (let i = 0; i < Math.ceil(TOTAL_MODS / PER_PAGE); i++) {
+            const btn = document.createElement('button');
+            btn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+            btn.textContent = `+${i * PER_PAGE + 1}~`;
+            btn.onclick = () => { currentPage = i; renderPagination(); renderModButtons(i); };
+            pag.appendChild(btn);
         }
     }
+
     function renderModButtons(idx) {
-        const g = document.getElementById('modGrid'); g.innerHTML = "";
-        for (let i = idx * 20 + 1; i <= (idx + 1) * 20; i++) {
-            const b = document.createElement('button');
-            b.className = "mod-btn"; b.textContent = `+${i}`;
-            b.onclick = () => startRoll('2d6', i);
-            g.appendChild(b);
+        const grid = document.getElementById('modGrid');
+        grid.innerHTML = "";
+        for (let i = idx * PER_PAGE + 1; i <= Math.min((idx + 1) * PER_PAGE, TOTAL_MODS); i++) {
+            const btn = document.createElement('button');
+            btn.className = "mod-btn";
+            btn.textContent = `+${i}`;
+            btn.onclick = () => startRoll('2d6', i);
+            grid.appendChild(btn);
         }
     }
 </script>
