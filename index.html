@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>SW2.5 Dice Roller (K:1-50 Ver)</title>
+<title>SW2.5 Dice Roller (Turn End Ver)</title>
 <style>
     :root {
         --primary: #2563eb;
@@ -84,7 +84,15 @@
     .del-entry-btn {
         background: #eee; color: #999; border: none; width: 24px; height: 24px;
         border-radius: 50%; font-size: 16px; cursor: pointer; display: flex;
-        align-items: center; justify-content: center;
+        align-items: center; justify-content: center; flex-shrink: 0;
+    }
+
+    /* ターン終了用の専用スタイル */
+    .log-turn-end {
+        background: #4b5563; color: white; padding: 6px 12px;
+        margin-bottom: 8px; border-radius: 4px; font-weight: bold;
+        font-size: 12px; text-align: center; letter-spacing: 2px;
+        display: flex; justify-content: space-between; align-items: center;
     }
 
     .modal-overlay {
@@ -143,7 +151,10 @@
     <div class="section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h3>履歴</h3>
-            <button style="color:red; background:none; border:none; cursor:pointer; font-size:12px;" onclick="clearLog()">履歴削除</button>
+            <div style="display:flex; gap:8px;">
+                <button style="padding:4px 10px; background:#4b5563; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;" onclick="addTurnEnd()">▼ ターン終了 ▼</button>
+                <button style="color:red; background:none; border:none; cursor:pointer; font-size:12px;" onclick="clearLog()">全削除</button>
+            </div>
         </div>
         <div id="log-container"></div>
     </div>
@@ -188,7 +199,6 @@
         const kSelect = document.getElementById('dmgRate');
         const mSelect = document.getElementById('dmgMod');
         
-        // 威力(k)は0〜50までに制限
         for (let i = 0; i <= 50; i++) {
             const ok = document.createElement('option');
             ok.value = i; ok.textContent = i;
@@ -196,7 +206,6 @@
             kSelect.appendChild(ok);
         }
 
-        // 追加ダメージは使いやすいよう0〜100を維持
         for (let i = 0; i <= 100; i++) {
             const om = document.createElement('option');
             om.value = i; om.textContent = i;
@@ -207,7 +216,6 @@
     function getRatingResult(k, roll) {
         if (roll <= 2) return 0;
         if (RATING_DATA[k]) return RATING_DATA[k][roll - 3];
-        // テーブルにない端数は計算式で補完
         return Math.round( k * (roll - 2) / 10 );
     }
 
@@ -234,7 +242,7 @@
         if (d.type === '2d6') {
             const r1 = Math.floor(Math.random()*6)+1, r2 = Math.floor(Math.random()*6)+1, sum = r1 + r2;
             let s = (sum===12)?"crit":(sum===2)?"fumble":"";
-            addLog(charName, `2d6+${d.mod}`, sum+d.mod, `[${r1},${r2}]+${d.mod}`, s);
+            addLog({ type: 'roll', char: charName, dice: `2d6+${d.mod}`, result: sum+d.mod, detail: `[${r1},${r2}]+${d.mod}`, style: s });
         } else if (d.type === 'damage') {
             calcDamage(charName, d.k, d.c, d.m);
         }
@@ -259,7 +267,11 @@
         const final = isFumble ? 0 : (ratingTotal + m);
         let detail = `内訳: ${rollTexts.join(" + ")}`;
         if(!isFumble) detail += `\n(威力計:${ratingTotal} + 追加D:${m})`;
-        addLog(charName, `威力${k}@${c}+${m}`, final, detail, isFumble ? "fumble" : (rollTexts.length > 1 ? "crit" : ""));
+        addLog({ type: 'roll', char: charName, dice: `威力${k}@${c}+${m}`, result: final, detail: detail, style: isFumble ? "fumble" : (rollTexts.length > 1 ? "crit" : "") });
+    }
+
+    function addTurnEnd() {
+        addLog({ type: 'turn_end' });
     }
 
     function openCharModal() {
@@ -278,30 +290,44 @@
     }
     function closeModal() { document.getElementById('charModal').style.display = 'none'; }
 
-    function addLog(char, dice, result, detail, style) {
-        logs.unshift({ time: new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}), char, dice, result, detail, style });
-        if(logs.length > 30) logs.pop();
+    function addLog(logData) {
+        logData.time = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+        logs.unshift(logData);
+        if(logs.length > 40) logs.pop();
         saveData(); renderLogs();
     }
+
     function renderLogs() {
         const c = document.getElementById('log-container');
-        c.innerHTML = logs.map((l, i) => `
-            <div class="log-entry ${l.style || ''}">
-                <div class="log-content">
-                    <div class="log-header">${l.time} : ${l.char} (${l.dice})</div>
-                    <div class="log-detail">${l.detail}</div>
-                </div>
-                <div class="log-result">${l.result}</div>
-                <button class="del-entry-btn" onclick="deleteLog(${i})">×</button>
-            </div>
-        `).join('');
+        c.innerHTML = logs.map((l, i) => {
+            if (l.type === 'turn_end') {
+                return `
+                    <div class="log-turn-end">
+                        <span style="visibility:hidden; width:24px;"></span>
+                        <span>--- ${l.time} : ターン終了 ---</span>
+                        <button class="del-entry-btn" style="background:rgba(255,255,255,0.2); color:white;" onclick="deleteLog(${i})">×</button>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="log-entry ${l.style || ''}">
+                        <div class="log-content">
+                            <div class="log-header">${l.time} : ${l.char} (${l.dice})</div>
+                            <div class="log-detail">${l.detail}</div>
+                        </div>
+                        <div class="log-result">${l.result}</div>
+                        <button class="del-entry-btn" onclick="deleteLog(${i})">×</button>
+                    </div>
+                `;
+            }
+        }).join('');
     }
 
     function deleteLog(i) { logs.splice(i, 1); saveData(); renderLogs(); }
     function clearLog() { if(confirm("履歴を削除しますか？")){ logs=[]; saveData(); renderLogs(); } }
-    function saveData() { localStorage.setItem('sw25_v6_k50', JSON.stringify({logs, charList})); }
+    function saveData() { localStorage.setItem('sw25_v7_turn', JSON.stringify({logs, charList})); }
     function loadData() {
-        const d = JSON.parse(localStorage.getItem('sw25_v6_k50') || "{}");
+        const d = JSON.parse(localStorage.getItem('sw25_v7_turn') || "{}");
         if(d.logs) logs = d.logs;
         if(d.charList) charList = d.charList;
         renderLogs();
